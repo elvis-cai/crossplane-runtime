@@ -431,3 +431,4 @@ func IsPaused(o metav1.Object) bool {
 
 func IsMergeRequest(o metav1.Object) bool {
 	return o.GetAnnotations()[AnnotationKeyReconciliationMR] == "true"
+}
