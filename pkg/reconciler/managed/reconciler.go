@@ -78,6 +78,7 @@ const (
 	reasonPending event.Reason = "PendingExternalResource"
 
 	reasonReconciliationPaused event.Reason = "ReconciliationPaused"
+        reasonReconciliationMR event.Reason = "ReconciliationMR"
 )
 
 // ControllerName returns the recommended name for controllers that use this
@@ -297,6 +298,8 @@ type ExternalClient interface {
 	// Delete the external resource upon deletion of its associated Managed
 	// resource. Called when the managed resource has been deleted.
 	Delete(ctx context.Context, mg resource.Managed) error
+
+        Plan(ctx context.Context, mg resource.Managed) error
 }
 
 // ExternalClientFns are a series of functions that satisfy the ExternalClient
@@ -306,6 +309,7 @@ type ExternalClientFns struct {
 	CreateFn  func(ctx context.Context, mg resource.Managed) (ExternalCreation, error)
 	UpdateFn  func(ctx context.Context, mg resource.Managed) (ExternalUpdate, error)
 	DeleteFn  func(ctx context.Context, mg resource.Managed) error
+	PlanFn    func(ctx context.Context, mg resource.Managed) error
 }
 
 // Observe the external resource the supplied Managed resource represents, if
@@ -330,6 +334,10 @@ func (e ExternalClientFns) Update(ctx context.Context, mg resource.Managed) (Ext
 // resource.
 func (e ExternalClientFns) Delete(ctx context.Context, mg resource.Managed) error {
 	return e.DeleteFn(ctx, mg)
+}
+
+func (e ExternalClientFns) Plan(ctx context.Context, mg resource.Managed) error {
+	return e.PlanFn(ctx, mg)
 }
 
 // A NopConnecter does nothing.
@@ -360,6 +368,8 @@ func (c *NopClient) Update(ctx context.Context, mg resource.Managed) (ExternalUp
 
 // Delete does nothing. It never returns an error.
 func (c *NopClient) Delete(ctx context.Context, mg resource.Managed) error { return nil }
+
+func (c *NopClient) Plan(_ context.Context, _ resource.Managed) error { return nil }
 
 // An ExternalObservation is the result of an observation of an external
 // resource.
@@ -789,6 +799,20 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		record.Event(managed, event.Warning(reasonCannotObserve, err))
 		managed.SetConditions(xpv1.ReconcileError(errors.Wrap(err, errReconcileObserve)))
 		return reconcile.Result{Requeue: true}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
+	}
+
+	if meta.IsMergeRequest(managed) && !observation.ResourceExists {
+		log.Debug("Reconciliation is paused via the merge request annotation", "annotation", meta.AnnotationKeyReconciliationMR, "value", "true")
+		record.Event(managed, event.Normal(reasonReconciliationMR, "MR, only run terraform plan"))
+
+		err := external.Plan(externalCtx, managed)
+		if err != nil {
+			log.Debug("Cannot plan external client", "error", err)
+		}
+		managed.SetConditions(xpv1.ReconcileSuccess())
+		// if the merge request annotation is removed, we will have a chance to reconcile again and resume
+		// and if status update fails, we will reconcile again to retry to update the status
+		return reconcile.Result{}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
 
 	// If this resource has a non-zero creation grace period we want to wait
