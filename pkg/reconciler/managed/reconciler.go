@@ -859,12 +859,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		// resource successfully, and we don't need any further action in this
 		// reconcile.
 		log.Debug("Observed the resource successfully with management policy ObserveOnly", "requeue-after", time.Now().Add(r.pollInterval))
-		managed.SetConditions(xpv1.ReconcileSuccess())
-		managed.SetAnnotations(map[string]string{"asd": "asdas"})
-		if err = r.client.Update(ctx, managed); err != nil {
-			log.Debug("Cannot update resource annotation", "error", err)
-
-		}
 		return reconcile.Result{RequeueAfter: r.pollInterval}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
 
@@ -882,6 +876,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		fmt.Println(managed.GetAnnotations(), "hahaha")
 		meta.AddAnnotations(managed, map[string]string{"test": "true"})
 		fmt.Println(managed.GetAnnotations(), "hahaha1")
+
+		if err = r.client.Update(ctx, managed); err != nil {
+			log.Debug("Cannot update resource annotation", "error", err)
+
+		}
 
 		// if the merge request annotation is removed, we will have a chance to reconcile again and resume
 		// and if status update fails, we will reconcile again to retry to update the status
