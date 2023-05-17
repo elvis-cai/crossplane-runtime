@@ -874,7 +874,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		managed.SetConditions(xpv1.ReconcileSuccess())
 		managed.SetConditions(xpv1.Available())
 		fmt.Println(managed.GetAnnotations(), "hahaha")
-		managed.SetAnnotations(map[string]string{"test": "test"})
+		meta.AddAnnotations(managed, map[string]string{"test": "true"})
 		fmt.Println(managed.GetAnnotations(), "hahaha1")
 
 		// if the merge request annotation is removed, we will have a chance to reconcile again and resume
