@@ -860,6 +860,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		// reconcile.
 		log.Debug("Observed the resource successfully with management policy ObserveOnly", "requeue-after", time.Now().Add(r.pollInterval))
 		managed.SetConditions(xpv1.ReconcileSuccess())
+		managed.SetAnnotations(map[string]string{"asd": "asdas"})
+		if err = r.client.Update(ctx, managed); err != nil {
+			log.Debug("Cannot update resource annotation", "error", err)
+
+		}
 		return reconcile.Result{RequeueAfter: r.pollInterval}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
 
@@ -873,6 +878,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		}
 		managed.SetConditions(xpv1.ReconcileSuccess())
 		managed.SetConditions(xpv1.Available())
+
 		fmt.Println(managed.GetAnnotations(), "hahaha")
 		meta.AddAnnotations(managed, map[string]string{"test": "true"})
 		fmt.Println(managed.GetAnnotations(), "hahaha1")
