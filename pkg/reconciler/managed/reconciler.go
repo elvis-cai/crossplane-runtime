@@ -374,8 +374,6 @@ func (c *NopClient) Delete(_ context.Context, _ resource.Managed) error { return
 
 func (c *NopClient) Plan(_ context.Context, _ resource.Managed) error { return nil }
 
-func (c *NopClient) Plan(_ context.Context, _ resource.Managed) error { return nil }
-
 // An ExternalObservation is the result of an observation of an external
 // resource.
 type ExternalObservation struct {
