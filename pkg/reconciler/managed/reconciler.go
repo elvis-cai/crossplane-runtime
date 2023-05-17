@@ -81,7 +81,7 @@ const (
 	reasonPending event.Reason = "PendingExternalResource"
 
 	reasonReconciliationPaused event.Reason = "ReconciliationPaused"
-        reasonReconciliationMR event.Reason = "ReconciliationMR"
+	reasonReconciliationMR     event.Reason = "ReconciliationMR"
 )
 
 // ControllerName returns the recommended name for controllers that use this
@@ -302,7 +302,7 @@ type ExternalClient interface {
 	// resource. Called when the managed resource has been deleted.
 	Delete(ctx context.Context, mg resource.Managed) error
 
-        Plan(ctx context.Context, mg resource.Managed) error
+	Plan(ctx context.Context, mg resource.Managed) error
 }
 
 // ExternalClientFns are a series of functions that satisfy the ExternalClient
@@ -871,6 +871,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			log.Debug("Cannot plan external client", "error", err)
 		}
 		managed.SetConditions(xpv1.ReconcileSuccess())
+		managed.SetConditions(xpv1.Available())
 		// if the merge request annotation is removed, we will have a chance to reconcile again and resume
 		// and if status update fails, we will reconcile again to retry to update the status
 		return reconcile.Result{}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
