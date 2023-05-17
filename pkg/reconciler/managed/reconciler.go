@@ -870,9 +870,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		if err != nil {
 			log.Debug("Cannot plan external client", "error", err)
 		}
+		managed.SetAnnotations(map[string]string{"asd": "true"})
 		managed.SetConditions(xpv1.ReconcileSuccess())
 		managed.SetConditions(xpv1.Available())
-		meta.AddAnnotations(managed, map[string]string{"testabc": "true"})
 		// if the merge request annotation is removed, we will have a chance to reconcile again and resume
 		// and if status update fails, we will reconcile again to retry to update the status
 		return reconcile.Result{}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
