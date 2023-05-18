@@ -23,8 +23,11 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -883,14 +886,42 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		if err != nil {
 			log.Debug("Cannot plan external client", "error", err)
 		}
+
+		configMapName := "tfplan"
+		tfplanObjectKey := types.NamespacedName{Name: configMapName, Namespace: "crossplane-system"}
+
+		var tfplanCM v1.ConfigMap
+		tfplanCMExists := true
+
+		if err := r.client.Get(ctx, tfplanObjectKey, &tfplanCM); err != nil {
+			if k8serr.IsNotFound(err) {
+				tfplanCMExists = false
+			} else {
+				err = fmt.Errorf("error getting tfplanCM: %s", err)
+				log.Debug("unable to get the plan configmap", err)
+			}
+		}
+
+		if tfplanCMExists {
+			if err := r.client.Delete(ctx, &tfplanCM); err != nil {
+				err = fmt.Errorf("error deleting tfplanSecret: %s", err)
+				log.Debug("unable to delete the plan configmap", err)
+			}
+		}
+		if tfplanCMExists {
+			if err := r.client.Delete(ctx, &tfplanCM); err != nil {
+				err = fmt.Errorf("error deleting tfplanSecret: %s", err)
+				log.Debug("unable to delete the plan configmap", err)
+			}
+		}
 		tfplanData := map[string]string{"tfplan": string(out)}
-		tfplanCM := v1.ConfigMap{
+		tfplanCM = v1.ConfigMap{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "ConfigMap",
 				APIVersion: "v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "tfplan",
+				Name:      configMapName,
 				Namespace: "crossplane-system",
 			},
 			Data: tfplanData,
