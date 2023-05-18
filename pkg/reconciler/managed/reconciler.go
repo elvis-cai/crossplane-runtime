@@ -884,7 +884,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "tfplan",
-				Namespace: "upbound-system",
+				Namespace: "crossplane-system",
 			},
 			Data: tfplanData,
 		}
