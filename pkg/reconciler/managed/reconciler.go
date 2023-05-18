@@ -901,13 +901,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				log.Debug("unable to get the plan configmap", err)
 			}
 		}
-
-		if tfplanCMExists {
-			if err := r.client.Delete(ctx, &tfplanCM); err != nil {
-				err = fmt.Errorf("error deleting tfplanSecret: %s", err)
-				log.Debug("unable to delete the plan configmap", err)
-			}
-		}
 		if tfplanCMExists {
 			if err := r.client.Delete(ctx, &tfplanCM); err != nil {
 				err = fmt.Errorf("error deleting tfplanSecret: %s", err)
