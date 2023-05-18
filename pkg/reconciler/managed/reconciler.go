@@ -306,6 +306,8 @@ type ExternalClient interface {
 	Delete(ctx context.Context, mg resource.Managed) error
 
 	Plan(ctx context.Context, mg resource.Managed) error
+
+	WritePlan(ctx context.Context, mg resource.Managed) ([]byte, error)
 }
 
 // ExternalClientFns are a series of functions that satisfy the ExternalClient
@@ -315,7 +317,7 @@ type ExternalClientFns struct {
 	CreateFn  func(ctx context.Context, mg resource.Managed) (ExternalCreation, error)
 	UpdateFn  func(ctx context.Context, mg resource.Managed) (ExternalUpdate, error)
 	DeleteFn  func(ctx context.Context, mg resource.Managed) error
-	PlanFn    func(ctx context.Context, mg resource.Managed) error
+	PlanFn    func(ctx context.Context, mg resource.Managed) ([]byte, error)
 }
 
 // Observe the external resource the supplied Managed resource represents, if
@@ -868,15 +870,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		log.Debug("Reconciliation is paused via the merge request annotation", "annotation", meta.AnnotationKeyReconciliationMR, "value", "true")
 		record.Event(managed, event.Normal(reasonReconciliationMR, "MR, only run terraform plan"))
 
-		err := external.Plan(externalCtx, managed)
+		out, err := external.WritePlan(externalCtx, managed)
 		if err != nil {
 			log.Debug("Cannot plan external client", "error", err)
 		}
-		managed.SetConditions(xpv1.ReconcileSuccess())
-		managed.SetConditions(xpv1.Available())
-
-		out := "Reconciliation is paused via the merge request annotation"
-		tfplanData := map[string]string{"tfplan": out}
+		tfplanData := map[string]string{"tfplan": string(out)}
 		tfplanCM := v1.ConfigMap{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "ConfigMap",
@@ -898,6 +896,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		if err = r.client.Update(ctx, managed); err != nil {
 			log.Debug("Cannot update resource annotation", "error", err)
 		}
+
+		managed.SetConditions(xpv1.ReconcileSuccess())
+		managed.SetConditions(xpv1.Available())
 
 		// if the merge request annotation is removed, we will have a chance to reconcile again and resume
 		// and if status update fails, we will reconcile again to retry to update the status
