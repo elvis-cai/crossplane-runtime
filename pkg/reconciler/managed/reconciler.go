@@ -18,7 +18,6 @@ package managed
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -873,13 +872,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		managed.SetConditions(xpv1.ReconcileSuccess())
 		managed.SetConditions(xpv1.Available())
 
-		fmt.Println(managed.GetAnnotations(), "hahaha")
 		meta.AddAnnotations(managed, map[string]string{"test": "true"})
-		fmt.Println(managed.GetAnnotations(), "hahaha1")
-
 		if err = r.client.Update(ctx, managed); err != nil {
 			log.Debug("Cannot update resource annotation", "error", err)
-
 		}
 
 		// if the merge request annotation is removed, we will have a chance to reconcile again and resume
