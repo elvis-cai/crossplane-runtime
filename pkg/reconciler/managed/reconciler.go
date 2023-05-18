@@ -313,11 +313,12 @@ type ExternalClient interface {
 // ExternalClientFns are a series of functions that satisfy the ExternalClient
 // interface.
 type ExternalClientFns struct {
-	ObserveFn func(ctx context.Context, mg resource.Managed) (ExternalObservation, error)
-	CreateFn  func(ctx context.Context, mg resource.Managed) (ExternalCreation, error)
-	UpdateFn  func(ctx context.Context, mg resource.Managed) (ExternalUpdate, error)
-	DeleteFn  func(ctx context.Context, mg resource.Managed) error
-	PlanFn    func(ctx context.Context, mg resource.Managed) ([]byte, error)
+	ObserveFn   func(ctx context.Context, mg resource.Managed) (ExternalObservation, error)
+	CreateFn    func(ctx context.Context, mg resource.Managed) (ExternalCreation, error)
+	UpdateFn    func(ctx context.Context, mg resource.Managed) (ExternalUpdate, error)
+	DeleteFn    func(ctx context.Context, mg resource.Managed) error
+	PlanFn      func(ctx context.Context, mg resource.Managed) error
+	WritePlanFn func(ctx context.Context, mg resource.Managed) ([]byte, error)
 }
 
 // Observe the external resource the supplied Managed resource represents, if
@@ -346,6 +347,10 @@ func (e ExternalClientFns) Delete(ctx context.Context, mg resource.Managed) erro
 
 func (e ExternalClientFns) Plan(ctx context.Context, mg resource.Managed) error {
 	return e.PlanFn(ctx, mg)
+}
+
+func (e ExternalClientFns) WritePlan(ctx context.Context, mg resource.Managed) ([]byte, error) {
+	return e.WritePlanFn(ctx, mg)
 }
 
 // A NopConnecter does nothing.
@@ -378,6 +383,10 @@ func (c *NopClient) Update(_ context.Context, _ resource.Managed) (ExternalUpdat
 func (c *NopClient) Delete(_ context.Context, _ resource.Managed) error { return nil }
 
 func (c *NopClient) Plan(_ context.Context, _ resource.Managed) error { return nil }
+
+func (c *NopClient) WritePlan(_ context.Context, _ resource.Managed) ([]byte, error) {
+	return nil, nil
+}
 
 // An ExternalObservation is the result of an observation of an external
 // resource.
