@@ -18,9 +18,12 @@ package managed
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -871,6 +874,25 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		}
 		managed.SetConditions(xpv1.ReconcileSuccess())
 		managed.SetConditions(xpv1.Available())
+
+		out := "Reconciliation is paused via the merge request annotation"
+		tfplanData := map[string]string{"tfplan": out}
+		tfplanCM := v1.ConfigMap{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ConfigMap",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "tfplan",
+				Namespace: "upbound-system",
+			},
+			Data: tfplanData,
+		}
+
+		if err := r.client.Create(ctx, &tfplanCM); err != nil {
+			err = fmt.Errorf("error recording plan status: %s", err)
+			log.Debug("unable to create plan configmap", err)
+		}
 
 		meta.AddAnnotations(managed, map[string]string{"test": "true"})
 		if err = r.client.Update(ctx, managed); err != nil {
