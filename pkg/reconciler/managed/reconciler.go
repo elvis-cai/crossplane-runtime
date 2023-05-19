@@ -908,8 +908,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				log.Debug("unable to delete the plan configmap", err)
 			}
 		}
-		fmt.Println(string(out))
-		tfplanData := map[string]string{"tfplan": "line 1\nline 2\nline 3"}
+		//tfplanData := map[string]string{"tfplan": "line 1\nline 2\nline 3"}
+		tfplanData := map[string]string{"tfplan": string(out)}
 		tfplanCM = v1.ConfigMap{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "ConfigMap",
