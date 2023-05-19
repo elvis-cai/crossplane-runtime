@@ -910,7 +910,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			}
 		}
 
-		yamlBytes, err := yaml.Marshal(out)
+		yamlBytes, err := yaml.Marshal(string(out))
 		if err != nil {
 			log.Debug("Failed to convert multiline string to YAML: %v", err)
 		}
