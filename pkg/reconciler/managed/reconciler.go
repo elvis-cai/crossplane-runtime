@@ -27,6 +27,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/yaml"
+
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -907,8 +909,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				log.Debug("unable to delete the plan configmap", err)
 			}
 		}
-		tfplanData := map[string]string{"tfplan": string(out)}
-		fmt.Println(tfplanData)
+
+		yamlBytes, err := yaml.Marshal(out)
+		if err != nil {
+			log.Debug("Failed to convert multiline string to YAML: %v", err)
+		}
+		tfplanData := map[string]string{"tfplan": string(yamlBytes)}
 		tfplanCM = v1.ConfigMap{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "ConfigMap",
