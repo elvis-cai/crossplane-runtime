@@ -30,6 +30,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -888,7 +889,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			log.Debug("Cannot plan external client", "error", err)
 		}
 
-		configMapName := "tfplan"
+		configMapName := "tfplan" + "-" + managed.GetNamespace() + "-" + managed.GetName()
+
 		tfplanObjectKey := types.NamespacedName{Name: configMapName, Namespace: "crossplane-system"}
 
 		var tfplanCM v1.ConfigMap
@@ -908,7 +910,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				log.Debug("unable to delete the plan configmap", err)
 			}
 		}
-		//tfplanData := map[string]string{"tfplan": "line 1\nline 2\nline 3"}
 		tfplanData := map[string]string{"tfplan": string(out)}
 		tfplanCM = v1.ConfigMap{
 			TypeMeta: metav1.TypeMeta{
@@ -918,7 +919,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      configMapName,
 				Namespace: "crossplane-system",
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: managed.GetObjectKind().GroupVersionKind().GroupVersion().String(),
+						Kind:       managed.GetObjectKind().GroupVersionKind().Kind,
+						Name:       managed.GetName(),
+						UID:        types.UID(managed.GetUID()),
+					},
+				},
 			},
+
 			Data: tfplanData,
 		}
 
@@ -927,10 +937,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			log.Debug("unable to create plan configmap", err)
 		}
 
-		meta.AddAnnotations(managed, map[string]string{"test": "true"})
-		if err = r.client.Update(ctx, managed); err != nil {
-			log.Debug("Cannot update resource annotation", "error", err)
-		}
+		/*
+			meta.AddAnnotations(managed, map[string]string{"test": "true"})
+			if err = r.client.Update(ctx, managed); err != nil {
+				log.Debug("Cannot update resource annotation", "error", err)
+			}
+		*/
 
 		managed.SetConditions(xpv1.ReconcileSuccess())
 		managed.SetConditions(xpv1.Available())
