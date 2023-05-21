@@ -925,14 +925,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 					"merge_request_iid": "135",
 					"project_id":        "23",
 				},
-				OwnerReferences: []metav1.OwnerReference{
-					{
-						APIVersion: managed.GetObjectKind().GroupVersionKind().GroupVersion().String(),
-						Kind:       managed.GetObjectKind().GroupVersionKind().Kind,
-						Name:       managed.GetName(),
-						UID:        types.UID(managed.GetUID()),
+				/*
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: managed.GetObjectKind().GroupVersionKind().GroupVersion().String(),
+							Kind:       managed.GetObjectKind().GroupVersionKind().Kind,
+							Name:       managed.GetName(),
+							UID:        types.UID(managed.GetUID()),
+						},
 					},
-				},
+				*/
 			},
 
 			Data: tfplanData,
