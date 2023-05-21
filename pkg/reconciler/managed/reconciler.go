@@ -925,16 +925,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 					"merge_request_iid": "135",
 					"project_id":        "23",
 				},
-				/*
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: managed.GetObjectKind().GroupVersionKind().GroupVersion().String(),
-							Kind:       managed.GetObjectKind().GroupVersionKind().Kind,
-							Name:       managed.GetName(),
-							UID:        types.UID(managed.GetUID()),
-						},
+
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: managed.GetObjectKind().GroupVersionKind().GroupVersion().String(),
+						Kind:       managed.GetObjectKind().GroupVersionKind().Kind,
+						Name:       managed.GetName(),
+						UID:        types.UID(managed.GetUID()),
 					},
-				*/
+				},
 			},
 
 			Data: tfplanData,
@@ -957,7 +956,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 		// if the merge request annotation is removed, we will have a chance to reconcile again and resume
 		// and if status update fails, we will reconcile again to retry to update the status
-		return reconcile.Result{}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
+		return reconcile.Result{Requeue: false}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
 
 	// If this resource has a non-zero creation grace period we want to wait
