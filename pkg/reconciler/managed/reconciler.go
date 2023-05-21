@@ -923,6 +923,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 					"purpose":           "tfplan",
 					"PR":                "true",
 					"merge_request_iid": "135",
+					"project_id":        "23",
 				},
 				OwnerReferences: []metav1.OwnerReference{
 					{
