@@ -889,7 +889,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			log.Debug("Cannot plan external client", "error", err)
 		}
 
-		configMapName := "tfplan" + "-" + managed.GetNamespace() + "-" + managed.GetName()
+		configMapName := "tfplan" + "-" + managed.GetName()
 
 		tfplanObjectKey := types.NamespacedName{Name: configMapName, Namespace: "crossplane-system"}
 
@@ -919,6 +919,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      configMapName,
 				Namespace: "crossplane-system",
+				Labels: map[string]string{
+					"purpose": "tfplan",
+					"PR":      "true",
+				},
 				OwnerReferences: []metav1.OwnerReference{
 					{
 						APIVersion: managed.GetObjectKind().GroupVersionKind().GroupVersion().String(),
