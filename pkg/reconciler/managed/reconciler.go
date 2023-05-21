@@ -920,8 +920,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				Name:      configMapName,
 				Namespace: "crossplane-system",
 				Labels: map[string]string{
-					"purpose": "tfplan",
-					"PR":      "true",
+					"purpose":           "tfplan",
+					"PR":                "true",
+					"merge_request_iid": "135",
 				},
 				OwnerReferences: []metav1.OwnerReference{
 					{
