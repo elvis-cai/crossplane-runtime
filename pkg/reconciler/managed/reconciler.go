@@ -18,6 +18,7 @@ package managed
 
 import (
 	"context"
+	"crypto/md5"
 	"fmt"
 	"strings"
 	"time"
@@ -905,7 +906,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			}
 		}
 		if tfplanCMExists {
-			if err := r.client.Delete(ctx, &tfplanCM); err != nil {
+			dataMd5Hash := md5.Sum([]byte(tfplanCM.Data["tfplan"]))
+			if dataMd5Hash == md5.Sum(out) {
+				log.Debug("tfplanCM already exists and is up-to-date")
+				managed.SetConditions(xpv1.ReconcileSuccess())
+				managed.SetConditions(xpv1.Available())
+				return reconcile.Result{}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
+			} else {
+				if err := r.client.Delete(ctx, &tfplanCM); err != nil {
 				err = fmt.Errorf("error deleting tfplanSecret: %s", err)
 				log.Debug("unable to delete the plan configmap", err)
 			}
@@ -956,7 +964,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 		// if the merge request annotation is removed, we will have a chance to reconcile again and resume
 		// and if status update fails, we will reconcile again to retry to update the status
-		return reconcile.Result{Requeue: false}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
+		return reconcile.Result{}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
 
 	// If this resource has a non-zero creation grace period we want to wait
