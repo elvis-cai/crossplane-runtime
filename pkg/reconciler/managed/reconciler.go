@@ -886,6 +886,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		log.Debug("Reconciliation is paused via the merge request annotation", "annotation", meta.AnnotationKeyReconciliationMR, "value", "true")
 		record.Event(managed, event.Normal(reasonReconciliationMR, "MR, only run terraform plan"))
 
+		CI_PROJECT_ID := os.Getenv("CI_PROJECT_ID")
+		CI_MERGE_REQUEST_IID := os.Getenv("CI_MERGE_REQUEST_IID")
+		if CI_PROJECT_ID == "" || CI_MERGE_REQUEST_IID == "" {
+			log.Debug("CI_PROJECT_ID or CI_MERGE_REQUEST_IID is not set")
+			return reconcile.Result{}, nil
+		}
+
 		out, err := external.WritePlan(externalCtx, managed)
 		if err != nil {
 			log.Debug("Cannot plan external client", "error", err)
@@ -919,13 +926,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 					log.Debug("unable to delete the plan configmap", err)
 				}
 			}
-		}
-
-		CI_PROJECT_ID := os.Getenv("CI_PROJECT_ID")
-		CI_MERGE_REQUEST_IID := os.Getenv("CI_MERGE_REQUEST_IID")
-		if CI_PROJECT_ID == "" || CI_MERGE_REQUEST_IID == "" {
-			log.Debug("CI_PROJECT_ID or CI_MERGE_REQUEST_IID is not set")
-			return reconcile.Result{}, nil
 		}
 
 		tfplanData := map[string]string{"tfplan": string(out)}
