@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -919,6 +920,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				}
 			}
 		}
+
+		CI_PROJECT_ID := os.Getenv("CI_PROJECT_ID")
+		CI_MERGE_REQUEST_IID := os.Getenv("CI_MERGE_REQUEST_IID")
+		if CI_PROJECT_ID == "" || CI_MERGE_REQUEST_IID == "" {
+			log.Debug("CI_PROJECT_ID or CI_MERGE_REQUEST_IID is not set")
+			return reconcile.Result{}, nil
+		}
+
 		tfplanData := map[string]string{"tfplan": string(out)}
 		tfplanCM = v1.ConfigMap{
 			TypeMeta: metav1.TypeMeta{
@@ -931,8 +940,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				Labels: map[string]string{
 					"purpose":           "tfplan",
 					"PR":                "true",
-					"merge_request_iid": "135",
-					"project_id":        "23",
+					"merge_request_iid": CI_MERGE_REQUEST_IID,
+					"project_id":        CI_PROJECT_ID,
 				},
 
 				OwnerReferences: []metav1.OwnerReference{
