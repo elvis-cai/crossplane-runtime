@@ -927,7 +927,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			}
 		}
 
-		tfplanData := map[string]string{"tfplan": string(out)}
+		tfplanData := map[string]string{"tfplan": "```\n" + string(out) + "\n```"}
 		tfplanCM = v1.ConfigMap{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "ConfigMap",
@@ -960,13 +960,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			err = fmt.Errorf("error recording plan status: %s", err)
 			log.Debug("unable to create plan configmap", err)
 		}
-
-		/*
-			meta.AddAnnotations(managed, map[string]string{"test": "true"})
-			if err = r.client.Update(ctx, managed); err != nil {
-				log.Debug("Cannot update resource annotation", "error", err)
-			}
-		*/
 
 		managed.SetConditions(xpv1.ReconcileSuccess())
 		managed.SetConditions(xpv1.Available())
