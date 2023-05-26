@@ -920,6 +920,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				managed.SetConditions(xpv1.Available())
 				return reconcile.Result{}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 			} else {
+				log.Debug("tfplanCM tfdata is not up-to-date")
+				log.Debug(tfplanCM.Data["tfplan"])
+				log.Debug(string(out))
 				if err := r.client.Delete(ctx, &tfplanCM); err != nil {
 					err = fmt.Errorf("error deleting tfplanSecret: %s", err)
 					log.Debug("unable to delete the plan configmap", err)
