@@ -912,9 +912,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				log.Debug("unable to get the plan configmap", err)
 			}
 		}
+
 		if tfplanCMExists {
 			dataMd5Hash := md5.Sum([]byte(tfplanCM.Data["tfplan"]))
-			if dataMd5Hash == md5.Sum(out) {
+			if dataMd5Hash == md5.Sum([]byte("```\n"+string(out)+"\n```")) {
 				log.Debug("tfplanCM already exists and is up-to-date")
 				managed.SetConditions(xpv1.ReconcileSuccess())
 				managed.SetConditions(xpv1.Available())
