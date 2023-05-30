@@ -914,8 +914,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		}
 
 		if tfplanCMExists {
-			dataMd5Hash := md5.Sum([]byte(tfplanCM.Data["tfplan"]))
-			if dataMd5Hash == md5.Sum([]byte("```\n"+string(out)+"\n```")) {
+			dataMd5Hash := md5.Sum([]byte(tfplanCM.Data["tfplan"] + tfplanCM.Labels["project_id"] + tfplanCM.Labels["merge_request_iid"]))
+			if dataMd5Hash == md5.Sum([]byte("```\n"+string(out)+"\n```"+tfplanCM.Labels["project_id"]+tfplanCM.Labels["merge_request_iid"])) {
 				log.Debug("tfplanCM already exists and is up-to-date")
 				managed.SetConditions(xpv1.ReconcileSuccess())
 				managed.SetConditions(xpv1.Available())
