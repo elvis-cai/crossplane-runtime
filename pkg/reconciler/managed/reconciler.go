@@ -18,11 +18,20 @@ package managed
 
 import (
 	"context"
+	"crypto/md5"
+	"fmt"
 	"strings"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -81,6 +90,7 @@ const (
 	reasonPending event.Reason = "PendingExternalResource"
 
 	reasonReconciliationPaused event.Reason = "ReconciliationPaused"
+	reasonReconciliationMR     event.Reason = "ReconciliationMR"
 )
 
 // ControllerName returns the recommended name for controllers that use this
@@ -300,15 +310,21 @@ type ExternalClient interface {
 	// Delete the external resource upon deletion of its associated Managed
 	// resource. Called when the managed resource has been deleted.
 	Delete(ctx context.Context, mg resource.Managed) error
+
+	Plan(ctx context.Context, mg resource.Managed) error
+
+	WritePlan(ctx context.Context, mg resource.Managed) ([]byte, error)
 }
 
 // ExternalClientFns are a series of functions that satisfy the ExternalClient
 // interface.
 type ExternalClientFns struct {
-	ObserveFn func(ctx context.Context, mg resource.Managed) (ExternalObservation, error)
-	CreateFn  func(ctx context.Context, mg resource.Managed) (ExternalCreation, error)
-	UpdateFn  func(ctx context.Context, mg resource.Managed) (ExternalUpdate, error)
-	DeleteFn  func(ctx context.Context, mg resource.Managed) error
+	ObserveFn   func(ctx context.Context, mg resource.Managed) (ExternalObservation, error)
+	CreateFn    func(ctx context.Context, mg resource.Managed) (ExternalCreation, error)
+	UpdateFn    func(ctx context.Context, mg resource.Managed) (ExternalUpdate, error)
+	DeleteFn    func(ctx context.Context, mg resource.Managed) error
+	PlanFn      func(ctx context.Context, mg resource.Managed) error
+	WritePlanFn func(ctx context.Context, mg resource.Managed) ([]byte, error)
 }
 
 // Observe the external resource the supplied Managed resource represents, if
@@ -333,6 +349,14 @@ func (e ExternalClientFns) Update(ctx context.Context, mg resource.Managed) (Ext
 // resource.
 func (e ExternalClientFns) Delete(ctx context.Context, mg resource.Managed) error {
 	return e.DeleteFn(ctx, mg)
+}
+
+func (e ExternalClientFns) Plan(ctx context.Context, mg resource.Managed) error {
+	return e.PlanFn(ctx, mg)
+}
+
+func (e ExternalClientFns) WritePlan(ctx context.Context, mg resource.Managed) ([]byte, error) {
+	return e.WritePlanFn(ctx, mg)
 }
 
 // A NopConnecter does nothing.
@@ -363,6 +387,12 @@ func (c *NopClient) Update(_ context.Context, _ resource.Managed) (ExternalUpdat
 
 // Delete does nothing. It never returns an error.
 func (c *NopClient) Delete(_ context.Context, _ resource.Managed) error { return nil }
+
+func (c *NopClient) Plan(_ context.Context, _ resource.Managed) error { return nil }
+
+func (c *NopClient) WritePlan(_ context.Context, _ resource.Managed) ([]byte, error) {
+	return nil, nil
+}
 
 // An ExternalObservation is the result of an observation of an external
 // resource.
@@ -848,9 +878,101 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		// resource successfully, and we don't need any further action in this
 		// reconcile.
 		log.Debug("Observed the resource successfully with management policy ObserveOnly", "requeue-after", time.Now().Add(r.pollInterval))
-		managed.SetConditions(xpv1.ReconcileSuccess())
 		return reconcile.Result{RequeueAfter: r.pollInterval}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
 	}
+
+	if meta.IsMergeRequest(managed) && !observation.ResourceExists {
+		log.Debug("Reconciliation is paused via the merge request annotation", "annotation", meta.AnnotationKeyReconciliationMR, "value", "true")
+		record.Event(managed, event.Normal(reasonReconciliationMR, "MR, only run terraform plan"))
+
+		CI_PROJECT_ID := managed.GetAnnotations()["CI_PROJECT_ID"]
+		CI_MERGE_REQUEST_IID := managed.GetAnnotations()["CI_MERGE_REQUEST_IID"]
+		if CI_PROJECT_ID == "" || CI_MERGE_REQUEST_IID == "" {
+			log.Debug("CI_PROJECT_ID or CI_MERGE_REQUEST_IID is not set")
+			return reconcile.Result{}, nil
+		}
+
+		out, err := external.WritePlan(externalCtx, managed)
+		if err != nil {
+			log.Debug("Cannot plan external client", "error", err)
+		}
+
+		configMapName := "tfplan" + "-" + managed.GetName()
+
+		tfplanObjectKey := types.NamespacedName{Name: configMapName, Namespace: "crossplane-system"}
+
+		var tfplanCM v1.ConfigMap
+		tfplanCMExists := true
+
+		if err := r.client.Get(ctx, tfplanObjectKey, &tfplanCM); err != nil {
+			if k8serr.IsNotFound(err) {
+				tfplanCMExists = false
+			} else {
+				err = fmt.Errorf("error getting tfplanCM: %s", err)
+				log.Debug("unable to get the plan configmap", err)
+			}
+		}
+
+		if tfplanCMExists {
+			dataMd5Hash := md5.Sum([]byte(tfplanCM.Data["tfplan"] + tfplanCM.Labels["project_id"] + tfplanCM.Labels["merge_request_iid"]))
+			if dataMd5Hash == md5.Sum([]byte("```\n"+string(out)+"\n```"+CI_PROJECT_ID+CI_MERGE_REQUEST_IID)) {
+				log.Debug("tfplanCM already exists and is up-to-date")
+				managed.SetConditions(xpv1.ReconcileSuccess())
+				managed.SetConditions(xpv1.Available())
+				return reconcile.Result{}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
+			} else {
+				log.Debug("tfplanCM tfdata is not up-to-date")
+				log.Debug(tfplanCM.Data["tfplan"])
+				log.Debug(string(out))
+				if err := r.client.Delete(ctx, &tfplanCM); err != nil {
+					err = fmt.Errorf("error deleting tfplanSecret: %s", err)
+					log.Debug("unable to delete the plan configmap", err)
+				}
+			}
+		}
+
+		tfplanData := map[string]string{"tfplan": "```\n" + string(out) + "\n```"}
+		tfplanCM = v1.ConfigMap{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ConfigMap",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      configMapName,
+				Namespace: "crossplane-system",
+				Labels: map[string]string{
+					"purpose":           "tfplan",
+					"PR":                "true",
+					"merge_request_iid": CI_MERGE_REQUEST_IID,
+					"project_id":        CI_PROJECT_ID,
+				},
+
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: managed.GetObjectKind().GroupVersionKind().GroupVersion().String(),
+						Kind:       managed.GetObjectKind().GroupVersionKind().Kind,
+						Name:       managed.GetName(),
+						UID:        types.UID(managed.GetUID()),
+					},
+				},
+			},
+
+			Data: tfplanData,
+		}
+
+		if err := r.client.Create(ctx, &tfplanCM); err != nil {
+			err = fmt.Errorf("error recording plan status: %s", err)
+			log.Debug("unable to create plan configmap", err)
+		}
+
+		managed.SetConditions(xpv1.ReconcileSuccess())
+		managed.SetConditions(xpv1.Available())
+
+		// if the merge request annotation is removed, we will have a chance to reconcile again and resume
+		// and if status update fails, we will reconcile again to retry to update the status
+		return reconcile.Result{}, errors.Wrap(r.client.Status().Update(ctx, managed), errUpdateManagedStatus)
+	}
+
 	// If this resource has a non-zero creation grace period we want to wait
 	// for that period to expire before we trust that the resource really
 	// doesn't exist. This is because some external APIs are eventually

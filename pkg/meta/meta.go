@@ -64,6 +64,8 @@ const (
 	// the resource will be filtered and thus no further reconcile requests
 	// will be queued for the resource.
 	AnnotationKeyReconciliationPaused = "crossplane.io/paused"
+
+        AnnotationKeyReconciliationMR = "airwallex.com/mr"
 )
 
 // Supported resources with all of these annotations will be fully or partially
@@ -425,4 +427,8 @@ func AllowsPropagationTo(from metav1.Object) map[types.NamespacedName]bool {
 // annotation set to `true`.
 func IsPaused(o metav1.Object) bool {
 	return o.GetAnnotations()[AnnotationKeyReconciliationPaused] == "true"
+}
+
+func IsMergeRequest(o metav1.Object) bool {
+	return o.GetAnnotations()[AnnotationKeyReconciliationMR] == "true"
 }
